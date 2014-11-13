@@ -1,0 +1,22 @@
+#!/bin/sh -ex
+
+: <<EOF
+
+ARG0=${0##*/}
+
+juju-log "$JUJU_REMOTE_UNIT - $ARG0"
+
+FORMULA_DIR=$(dirname $0)
+
+if [[ -e /usr/share/charm-helper/sh/peer.sh ]] ; then
+  . /usr/share/charm-helper/sh/peer.sh
+else
+  juju-log -l ERROR "Could not load /usr/share/charm-helper/sh/peer.sh"
+fi
+
+#this should be done specifically on depart
+ch_peer_copy_cleanup $JUJU_REMOTE_UNIT
+
+#then we continue with standard stuff which should also handle reelection
+$FORMULA_DIR/peer-relation-all
+EOF

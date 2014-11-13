@@ -1,0 +1,24 @@
+name: drupal
+summary: Full Featured content management framework
+maintainer: "Vasiliy Tolstov <v.tolstov@selfip.ru>"
+description: |
+ Drupal is a dynamic web site platform which allows an individual or
+ community of users to publish, manage and organize a variety of
+ content, Drupal integrates many popular features of content
+ management systems, weblogs, collaborative tools and discussion-based
+ community software into one easy-to-use package.
+tags:
+  - applications
+requires:
+  mail:
+    interface: smtp
+  db:
+    interface: mysql
+provides:
+  website:
+    interface: http
+peers:
+  loadbalancer:
+    interface: reversenginx
+  peer:
+    interface: drupal-peers

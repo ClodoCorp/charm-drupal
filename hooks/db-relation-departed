@@ -1,0 +1,20 @@
+#!/bin/sh -ex
+
+: <<EOF
+
+juju-log $JUJU_REMOTE_UNIT relation-departed
+
+common="drupal-common"
+FORMULA_DIR=$(dirname $0)
+if [[ -e $FORMULA_DIR/$common ]] ; then
+    . $FORMULA_DIR/$common
+else
+    juju-log "ERROR: Could not load $common from $FORMULA_DIR"
+    exit 1
+fi
+
+if [ ! -e "$LPATH/sites/default/settings.php" ]; then
+  # can't use this database anymore, let's move the settings away
+  mv $LPATH/sites/default/settings.php $LPATH/sites/default/settings.php.old
+fi
+EOF

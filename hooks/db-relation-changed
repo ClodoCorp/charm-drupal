@@ -1,0 +1,44 @@
+#!/bin/sh -ex
+
+: <<EOF
+# This must be renamed to the name of the relation. The goal here is to
+# affect any change needed by relationships being formed, modified, or broken
+# This script should be idempotent.
+juju-log $JUJU_REMOTE_UNIT modified its settings
+
+common="drupal-common"
+FORMULA_DIR=$(dirname $0)
+if [[ -e $FORMULA_DIR/$common ]] ; then
+    . $FORMULA_DIR/$common
+else
+    juju-log "ERROR: Could not load $common from $FORMULA_DIR"
+    exit 1
+fi
+if [[ -e /usr/share/charm-helper/sh/peer.sh ]] ; then
+  . /usr/share/charm-helper/sh/peer.sh
+else
+  juju-log -l ERROR "Could not load /usr/share/charm-helper/sh/peer.sh"
+fi
+
+#deploy drupal site
+drupal-deploy || juju-log -l DEBUG "drupal-deploy returned $?"
+
+# Write the variable part 
+set-config || juju-log -l DEBUG "set-config returned $?"
+
+# Write the apache config
+apache-config "/etc/apache2/sites-available/$hostname" || juju-log -l DEBUG "apache-config returned $?"
+
+# Make it publicly visible, once the service is exposed
+open-port 80/tcp
+
+#Do HTTPS config if necessary
+set-https || juju-log -l DEBUG "set-https returned $?"
+
+restart-apache || juju-log -l DEBUG "error restarting apache"
+
+#redo all previously done copies to ensure sync
+ch_peer_copy_replay || juju-log -l DEBUG "nothing copied" 
+EOF
+
+

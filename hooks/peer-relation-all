@@ -1,0 +1,65 @@
+#!/bin/sh -ex
+
+: <<EOF
+ARG0=${0##*/}
+
+juju-log "$JUJU_REMOTE_UNIT - $ARG0"
+
+common="drupal-common"
+FORMULA_DIR=$(dirname $0)
+if [[ -e $FORMULA_DIR/$common ]] ; then
+    . $FORMULA_DIR/$common
+else
+    juju-log "ERROR: Could not load $common from $FORMULA_DIR"
+    exit 1
+fi
+if [[ -e /usr/share/charm-helper/sh/peer.sh ]] ; then
+  . /usr/share/charm-helper/sh/peer.sh
+else
+  juju-log -l ERROR "Could not load /usr/share/charm-helper/sh/peer.sh"
+fi
+
+ch_sshd_set_root_login 1
+
+drupal-setup-cron "peer"
+
+#store the fact that we lead for other events
+if ch_peer_i_am_leader ; then
+  echo "1" > $config_path/leader
+else
+  if [ -e $config_path/leader ]; then
+    rm $config_path/leader
+  fi
+fi
+
+salt_path=`get-drupal-hash-salt`
+if ch_peer_copy "$ssl_crt_f" "$ssl_crt_f" "$ssl_key_f" "$ssl_key_f" "$salt_path" "$salt_path" ; then
+  # this is a slave and the copy is complete
+  
+  # if apache config has never been done yet, it is a good time to do so
+  if [ ! -e "/etc/apache2/sites-available/$hostname" ]; then
+    # Write the variable part 
+    set-config || juju-log -l DEBUG "set-config returned $?"
+
+    # Write the apache config
+    apache-config "/etc/apache2/sites-available/$hostname" || juju-log -l DEBUG "apache-config returned $?"
+
+    # Make it publicly visible, once the service is exposed
+    open-port 80/tcp
+
+    #Do HTTPS config if necessary
+    set-https || juju-log -l DEBUG "set-https returned $?"
+  fi
+  
+  set-drupal-hash-salt
+  set-ssl-cert $ssl_crt_f
+  set-ssl-cert $ssl_key_f
+  restart-apache
+fi
+
+#synchronize the site directory
+ch_peer_copy --rsync -o "-az" "$LPATH/sites" "$LPATH"
+
+exit 0
+
+EOF

@@ -1,0 +1,407 @@
+#!/bin/sh -ex
+
+install_path="/srv/www/htdocs/"
+: <<COMMENT
+
+LPATH="/var/opt/drupal"
+drush_default="--root=$LPATH --yes"
+local_mountpoint="$LPATH/files-shared"
+local_owner="www-data"
+config_tmp="/var/lib/juju/drupal-config.tmp"
+config_path="/var/lib/juju/drupal-config"
+if [ ! -e "$config_path" ]; then
+  mkdir -p $config_path
+fi
+
+hostname=`unit-get public-address`
+
+ssl_crt_f="$config_path/ssl-cert-drupal.pem"
+ssl_key_f="$config_path/ssl-cert-drupal.key"
+
+#generate the salt 
+function gen-drupal-hash-salt {
+  [[ ! `which pwgen` ]] && apt-get -y install pwgen &> /dev/null
+  local drupal_hash_salt=$(pwgen -c -s 24 1)
+  echo $drupal_hash_salt > $config_path/drupal_hash_salt
+  juju-log -l DEBUG "hash salt generated: $drupal_hash_salt" &> /dev/null
+  echo $drupal_hash_salt
+}
+
+# Get the drupal_hash_salt path, or generate if it does not exist
+function get-drupal-hash-salt {
+  if ch_peer_i_am_leader && [[ ! -e "$config_path/drupal_hash_salt" ]]; then
+    # Generate a des key if not set yet
+    set-drupal-hash-salt "`gen-drupal-hash-salt`"
+  fi
+  echo "$config_path/drupal_hash_salt"
+}
+
+#Write the drupal_hash_salt to the config
+function set-drupal-hash-salt {
+  juju-log -l DEBUG "set-drupal-hash-salt"
+  local drupal_hash_salt=""
+  if [[ $# < 1 ]]; then
+    if [[ ! -e "$config_path/drupal_hash_salt" ]]; then
+      juju-log -l DEBUG "$config_path/drupal_hash_salt did not exist"
+      # Generate a des key if not set yet
+      drupal_hash_salt=`gen-drupal-hash-salt`
+    else
+      drupal_hash_salt=$(cat "$config_path/drupal_hash_salt")
+      juju-log -l DEBUG "$config_path/drupal_hash_salt exists : $drupal_hash_salt"
+    fi
+  else
+    drupal_hash_salt=$1
+  fi
+  
+  drush variable-set $drush_default --always-set drupal_hash_salt $drupal_hash_salt
+}
+
+#set correct rights on ssl certs
+function set-ssl-cert {
+  if [ $# -gt 0 ] ; then
+    if [ -e "$1" ]; then
+      chmod 0640 "$1"
+      chown root:www-data "$1"
+    fi
+  else 
+    local ssl_crt=$(config-get ssl_crt)
+    local ssl_key=$(config-get ssl_key)
+    if [ -e "$ssl_crt" ] ; then
+      cp $ssl_crt $ssl_crt_f
+      set-ssl-cert $ssl_crt_f
+    else
+      juju-log -l WARNING "Config's file ssl_crt: $ssl_crt does not exist"
+    fi
+     if [ -e "$ssl_key" ] ; then
+      cp $ssl_key $ssl_key_f
+      set-ssl-cert $ssl_key_f
+    else
+      juju-log -l WARNING "Config's file ssl_key: $ssl_key does not exist"
+    fi
+  fi
+}
+
+function drupal-download {
+  juju-log -l DEBUG "Starting drupal download"
+  
+  #protect ourselves from a previous install
+  if [ -e "$LPATH" ]; then 
+    rm -rf $LPATH
+  fi
+  if [ -e "/var/www/$hostname" ]; then
+    rm /var/www/$hostname
+  fi
+  
+  local drupal_version=$(config-get drupal-version)
+  [ $drupal_version = "current" ] && drupal_version=""
+  drush dl $drupal_version $drush_default \
+    --destination=`dirname $LPATH` \
+    --drupal-project-rename=`basename $LPATH`
+    
+  drupal-setup-cron "install"
+}
+
+
+function drupal-deploy {
+  # Get the database settings; if not set, wait for this hook to be
+  # invoked again
+  local database=`relation-get database`
+  if [ -z "$database" ] ; then
+    exit 0 # wait for future handshake from database service unit
+  fi
+
+  # Our protocol on this interface ensures that all or none of the
+  # settings are set. But we can verify the setting or the values if
+  # more error checking if desired.
+  local user=`relation-get user`
+  local password=`relation-get password`
+  local host=`relation-get private-address`
+  local profile=$(config-get profile)
+  [ x"$profile" = x"default" ] && profile="" #default profile = no profile specified
+  
+  juju-log -l DEBUG "Starting drupal site deployment"
+  #Only do the site install if we lead, otherwise our settings will be passed via ch_peer_copy
+  if [ -e $config_path/leader ] && [ ! -e "$LPATH/sites/default/settings.php" ] ; then
+    #Check is database is already populated
+    local dbexist=0
+    echo "SELECT * FROM users;" | mysql -h $host --user=$user --password=$password $database && dbexist=1
+    if [ $dbexist = 0 ]; then
+      #database is not yet populated, let's do it
+      drush site-install $profile $drush_default \
+        --db-url="mysql://${user}:${password}@${host}/${database}" \
+        --account-name=$(config-get account-name) \
+        --account-pass=$(config-get account-pass) \
+        --account-mail=$(config-get account-mail) \
+        --locale=$(config-get default-locale) \
+        --site-name=$(config-get site-name) \
+        --site-mail=$(config-get site-mail)
+        
+      chown -R -f $local_owner.$local_owner $LPATH
+      chmod -f ug+r $LPATH/sites/default/settings.php
+    fi
+  fi    
+    
+  #create the dirs for files
+  #we do not want to use $local_mounpoint here as if we are a not connected to nfs
+  #we may lose access to those files once it is established
+  drupal-update-files "$LPATH/files"
+  
+  # Setup appropriate link in /var/www
+  if [ ! -e /var/www/$hostname ]; then
+    ln -sf $LPATH "/var/www/$hostname"
+  fi
+}
+
+function drupal-setup-cron {
+  #install cron job for drupal
+  case $1 in
+  "install")
+    echo '#!/bin/sh' > $config_path/cron.sh
+    echo "/usr/bin/drush $drush_default cron" >> $config_path/cron.sh
+    chmod a+x $config_path/cron.sh
+    #we assume that we are a single unit, we'll remove this if we are not the leader in peer-events
+    ln -s $config_path/cron.sh /etc/cron.hourly/drupal
+    ;;
+
+  "peer")
+    if ch_peer_i_am_leader; then
+      #we are the leader, check if we have the cron task
+      if [ ! -e /etc/cron.hourly/drupal ]; then
+        ln -s $config_path/cron.sh /etc/cron.hourly/drupal
+      fi
+    else
+      #we are not the leader, let's remove the cron task
+      if [ -e /etc/cron.hourly/drupal ]; then
+        rm /etc/cron.hourly/drupal
+      fi
+    fi
+    ;;
+    
+  *)
+    juju-log -l ERROR "unknown case for drupal-setup-cron"
+    ;;
+  esac
+}
+
+function drupal-dl-modules {
+  juju-log -l DEBUG "download the listed modules"
+  
+  #only download modules on leader, they will be synched by ch_peer_copy
+  if [ -e $config_path/leader ] ; then
+    local modules=$(config-get modules)
+    local installed=$(drush $drush_default pm-list)
+    
+    for module in $modules; do
+      if ! echo "$installed" | grep -q "$module" ; then
+        #the module is not yet installed, go for it
+        drush $drush_default dl $module
+        drush $drush_default en $module
+      fi
+    done
+  fi
+}
+
+function drupal-update-files {
+  juju-log -l DEBUG "updating drupal file paths"
+  local path=${1:-$local_mountpoint}
+  
+  if [ ! -e "$path/public" ]; then
+    mkdir -p $path/public
+    mkdir -p $path/private
+    mkdir -p $path/tmp
+    # insure ownership and rights
+    chown -R -f $local_owner.$local_owner $path
+    chmod -R -f ug+rw $path
+  fi
+  
+  #Only set the path variables on the leader
+  if [ -e $config_path/leader ]; then
+    #drupal expect the path to be relative 
+    path=`echo "$path" | sed s+$LPATH/++`
+    drush $drush_default variable-set file_public_path "$path/public"
+    drush $drush_default variable-set file_private_path "$path/private"
+    drush $drush_default variable-set file_temporary_path "$path/tmp"
+  fi
+}
+
+function drupal-set-variables {
+  local vars=${1:-}
+  
+  #only set variables on the leader
+  if [ -e $config_path/leader ] ; then
+    for varval in $vars; do 
+      drush $drush_default variable-set `echo $varval | sed 's/=/ /'`
+    done
+  fi
+}
+
+#Set the configuration values that can be changed after the relation
+#with the db has been done
+function set-config {
+  if [[ ! -e "$LPATH/sites/default/settings.php" ]] ; then
+    juju-log "Database relation has not been established yet, can't change the config"
+    exit 0
+  fi
+
+  juju-log -l DEBUG "Setting drupal's configs"
+ 
+  # set and write the salt
+  set-drupal-hash-salt
+  
+  #set and write the variables
+  drupal-set-variables "$(config-get variable-set)"
+  
+  #download eventually added modules
+  drupal-dl-modules
+  
+  #this is just a tell-tale to check where we are at in term of copies
+  echo "$(config-get conf-version)" > $LPATH/sites/conf-version
+}
+
+
+
+#Do Apache SSL configuration if necessary
+function set-https {
+  do_https=$(config-get do_https)
+
+  if [[ $do_https != 0 ]]; then
+    if [[ ! -e "$ssl_crt_f" ]]; then
+      juju-log -l WARNING "HTTPS cannot be activated: you must provide a valid full path to a SSL certificate file in ssl_crt"
+      do_https=0
+    fi
+    if [[ ! -e "$ssl_key_f" ]]; then
+      juju-log -l WARNING "HTTPS cannot be activated: you must provide a valid full path to a SSL certificate key file in ssl_key"
+      do_https=0
+    fi
+  else
+    juju-log -l INFO "Not activating HTTPS"
+  fi
+
+  if [[ $do_https != 0 ]]; then
+    apache_config_file_path="/etc/apache2/sites-available/${hostname}.ssl"
+
+    #check if modifications are needed
+    if [[ -e "$apache_config_file_path" ]]; then
+      grep -q "Listen $do_https" apache_config_file_path
+      if [[ $? == 0 ]]; then
+        grep -q "SSLCertificateFile $ssl_crt_f" apache_config_file_path
+        if [[ $? == 0 ]]; then
+          grep -q "SSLCertificateKeyFile $ssl_key_f" apache_config_file_path
+          if [[ $? == 0 ]]; then
+            do_https=0
+            juju-log -l DEBUG "Everything already set for HTTPS, no changes needed"
+          fi # Key
+        fi # Cert
+      fi # Listen
+    fi #[[ -e apache_config_file_path ]]
+  fi #[[ ! $do_https == 0 ]]
+
+  if [[ $do_https != 0 ]]; then
+    #setup an ssl vhost
+    
+    apache-config "/etc/apache2/sites-available/${hostname}.ssl" $do_https "https"
+
+    open-port $do_https/tcp
+    
+    return 0
+  else
+     if [[ -e "/etc/apache2/sites-enabled/${hostname}.ssl" ]]; then
+      a2dissite ${hostname}.ssl
+      return 0
+    fi
+    return 1
+  fi
+} 
+
+
+
+# Restart apache and post some error in case of failure.
+function restart-apache {
+  juju-log "Restarting apache2 service"
+  
+  if [[ ! -e "$LPATH/sites/default/settings.php" ]] ; then
+    juju-log -l INFO "Database relation has not been established yet, let's not (re)start apache"
+    exit 0
+  fi
+  
+  service apache2 restart && exit 0
+  juju-log -l ERROR "Failed to start apache2, check that the SSL cert file are valid (most likely). Disabling https config and restarting without it for now."
+  
+  a2dissite  ${hostname}.ssl
+  service apache2 restart && exit 0
+  juju-log -l ERROR "Something is wrong with apache, even after disabling the https site. Time to use that juju debug-hook command to see what's hapening over there..."
+}
+
+
+
+# Write the apache config
+function apache-config {
+  # XXX a future branch will change this to use augtool
+  
+  local apache_config_file_path=${1:-"/etc/apache2/sites-available/$hostname"}
+  local port=${2:-80}
+  local proto=${3:-}
+  
+  if [[ "$proto" == "https" ]]; then
+    https="SSLEngine on 
+    SSLOptions +StrictRequire 
+    SSLCertificateFile $ssl_crt_f
+    SSLCertificateKeyFile $ssl_key_f
+ "
+  else
+    https=""
+  fi
+  if [[ $port == 80 ]] || [[ $port == 443 ]]; then
+    #ports 80 and 443 are already in listen by default, will cause an error 
+    listen=""
+  else
+    listen="Listen $port"
+  fi
+  
+  juju-log -l DEBUG "Writing apache config file $apache_config_file_path $port $3"
+  cat > $apache_config_file_path <<EOF
+$listen
+
+<VirtualHost *:$port>
+    $https
+    ServerName $hostname
+    DocumentRoot /var/www/$hostname
+    Options All
+    ErrorLog /var/log/apache2/$hostname-error.log
+    TransferLog /var/log/apache2/$hostname-access.log
+</VirtualHost>
+EOF
+  
+  chmod 0644 $apache_config_file_path
+  
+  # Configure apache
+  juju-log -l DEBUG "Enabling apache modules: rewrite, vhost_alias, ssl"
+  a2enmod rewrite
+  a2enmod vhost_alias
+  a2enmod ssl
+  
+  if [[ $(config-get optimize_http) == 1 ]]; then
+    # Better settings for production
+    juju-log -l DEBUG "Production setting: expires, headers, deflate enabled"
+    a2enmod expires
+    a2enmod headers
+    a2enmod deflate
+  else
+    # Better settings for debugging
+    juju-log -l DEBUG "Debug setting: expires, headers, deflate disabled"
+    a2dismod expires
+    a2dismod headers
+    a2dismod deflate
+  fi
+
+  if [[ -n "$https" ]]; then
+    a2ensite ${hostname}.ssl
+  else
+    a2ensite ${hostname}
+  fi
+  
+  #disable default site so that resolution is dependable with load balancing
+  a2dissite default
+}
+
+COMMENT
