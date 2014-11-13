@@ -1,5 +1,7 @@
 #!/bin/sh -ex
 
+. inc/common
+
 apt-get update
 apt-get -y install --no-install-suggests --no-install-recommends  apache2 php5-gd libapache2-mod-php5 mysql-client-core-5.5 php5-mysql pwgen php-pear php5-gd php5
 
@@ -23,9 +25,7 @@ curl -vv -L $TARBALL > /tmp/drupal.tar.gz
 
 juju-log "Extract"
 mkdir -p $install_path
-tar -C $install_path -zxf /tmp/drupal.tar.gz
+tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
 rm -f /tmp/drupal.tar.gz
 
-
-
-
+set_permissions
