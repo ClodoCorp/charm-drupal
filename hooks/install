@@ -9,23 +9,3 @@ a2enmod php5 headers
 a2dissite 000-default
 
 service apache2 restart
-
-: <<EOF
-
-#install drush so that we are prepared to deploy 
-pear channel-discover pear.drush.org
-pear install drush/drush
-
-drupal-download
-EOF
-
-juju-log "Download"
-TARBALL="http://ftp.drupal.org/files/projects/drupal-7.33.tar.gz"
-curl -vv -L $TARBALL > /tmp/drupal.tar.gz
-
-juju-log "Extract"
-mkdir -p $install_path
-tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
-rm -f /tmp/drupal.tar.gz
-
-set_permissions

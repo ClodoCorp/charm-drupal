@@ -6,6 +6,23 @@ tuning_level=`config-get tuning`
 engine=`config-get engine`
 unit_address=`unit-get private-address`
 
+
+version=`config-get version`
+uber=`config-get uber`
+
+juju-log "Download"
+TARBALL="http://ftp.drupal.org/files/projects/drupal-"$version".tar.gz"
+curl -vv -L $TARBALL > /tmp/drupal.tar.gz
+
+juju-log "Extract"
+mkdir -p $install_path
+tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
+rm -f /tmp/drupal.tar.gz
+
+set_permissions
+
+
+
 if [ "x$engine" = "xapache" -o "x${engine}" = "xapache2" ]; then
 	if [ -f .web-engine ]; then
 		web_engine=`cat .web-engine`
@@ -32,6 +49,7 @@ if [ "x$engine" = "xapache" -o "x${engine}" = "xapache2" ]; then
 
 	echo "apache2" > .web-engine
 fi
+
 
 hooks/loadbalancer-rebuild
 
