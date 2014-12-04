@@ -14,7 +14,7 @@ install_drupal(){
 
       juju-log "Install Drupal version $version"
       rm -fr $install_path
-      mkdir $install_path
+      mkdir -p $install_path
 
       juju-log "Download"
       TARBALL="http://ftp.drupal.org/files/projects/drupal-"$version".tar.gz"
