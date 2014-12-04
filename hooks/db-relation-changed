@@ -21,7 +21,7 @@ else
 fi
 cat <<EOF >> $config_file
 \$databases['default']['default'] = array(
-  'driver' => 'mysqli',
+  'driver' => 'mysql',
   'database' => '$database',
   'username' => '$user',
   'password' => '$password',
