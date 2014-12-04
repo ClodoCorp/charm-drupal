@@ -20,7 +20,7 @@ else
     config_file="$install_path/sites/default/default.settings.php"
 fi
 cat <<EOF >> $config_file
-$databases['default']['default'] = array(
+\$databases['default']['default'] = array(
   'driver' => 'mysqli',
   'database' => '$database',
   'username' => '$user',
