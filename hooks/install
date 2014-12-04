@@ -9,3 +9,8 @@ a2enmod php5 headers
 a2dissite 000-default
 
 service apache2 restart
+
+
+sed -i "s|dc_eximconfig_configtype='local'|dc_eximconfig_configtype='internet'|g" /etc/exim4/update-exim4.conf.conf
+
+update-exim4.conf
