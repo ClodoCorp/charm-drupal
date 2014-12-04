@@ -19,5 +19,5 @@ options:
     description: "Version of Drupal"
   uber:
     type: string
-    default: no
+    default: "no"
     description:  "Nood to download and extract UberCart"
