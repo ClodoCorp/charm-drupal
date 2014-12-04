@@ -10,16 +10,34 @@ unit_address=`unit-get private-address`
 version=`config-get version`
 uber=`config-get uber`
 
-juju-log "Download"
-TARBALL="http://ftp.drupal.org/files/projects/drupal-"$version".tar.gz"
-curl -vv -L $TARBALL > /tmp/drupal.tar.gz
+install_drupal(){
 
-juju-log "Extract"
-mkdir -p $install_path
-tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
-rm -f /tmp/drupal.tar.gz
+      juju-log "Install Drupal version $version"
+      rm -fr $install_path
+      mkdir $install_path
 
-set_permissions
+      juju-log "Download"
+      TARBALL="http://ftp.drupal.org/files/projects/drupal-"$version".tar.gz"
+      curl -vv -L $TARBALL > /tmp/drupal.tar.gz
+
+      juju-log "Extract"
+      tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
+      rm -f /tmp/drupal.tar.gz
+
+      set_permissions
+      echo $version > .version
+}
+
+
+if [ -f .version ]; then
+   if [ "x$(cat .version)" = "x$version" ]; then 
+      juju-log "Drupal version $version already installed"
+   else
+      install_drupal
+   fi
+else
+install_drupal
+fi
 
 
 
