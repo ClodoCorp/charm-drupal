@@ -21,17 +21,23 @@ else
     config_file="$install_path/sites/default/default.settings.php"
 fi
 
-cat <<EOF >> $config_file
-\$databases['default']['default'] = array(
-  'driver' => 'mysql',
-  'database' => '$database',
-  'username' => '$user',
-  'password' => '$password',
-  'host' => '$host',
-  'prefix' => '',
-  'collation' => 'utf8_general_ci',
-);
-EOF
+if [ $version = "6.34"];then
+ sed -i "s|\$db_url = 'mysql://username:password@localhost/databasename';|\$db_url = 'mysql://$user:$password@$host/$database';|g" $config_file
+else
+  cat <<EOF >> $config_file
+    \$databases['default']['default'] = array(
+    'driver' => 'mysql',
+    'database' => '$database',
+    'username' => '$user',
+    'password' => '$password',
+    'host' => '$host',
+    'prefix' => '',
+    'collation' => 'utf8_general_ci',
+    );
+   EOF
+fi
+
+
 
 
 
