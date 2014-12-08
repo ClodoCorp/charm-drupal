@@ -11,7 +11,7 @@ host=`relation-get private-address`
 version=`config-get version`
 
 if [ -z "$database" ] ; then
-	exit 0
+    exit 0
 fi
 
 config_file=""
@@ -21,10 +21,13 @@ else
     config_file="$install_path/sites/default/default.settings.php"
 fi
 
-if [ $version = "6.34"];then
+if [ $version = "6.34" ];then
+
  sed -i "s|\$db_url = 'mysql://username:password@localhost/databasename';|\$db_url = 'mysql://$user:$password@$host/$database';|g" $config_file
+
 else
-  cat <<EOF >> $config_file
+
+cat <<EOF >> $config_file
     \$databases['default']['default'] = array(
     'driver' => 'mysql',
     'database' => '$database',
@@ -34,7 +37,8 @@ else
     'prefix' => '',
     'collation' => 'utf8_general_ci',
     );
-   EOF
+EOF
+
 fi
 
 
