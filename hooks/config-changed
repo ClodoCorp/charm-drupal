@@ -26,10 +26,31 @@ install_drupal(){
       if [ $version = "6.34" ];then
          mv $install_path/sites/default/default.settings.php $install_path/sites/default/settings.php
       fi
-      set_permissions
+
       echo $version > .version
 }
 
+install_uber(){
+
+    juju-log "Install Ubercart modules"
+    juju-log "Download"
+
+    if [ $version = 6.34 ]; then
+      TOKEN_TB="http://ftp.drupal.org/files/projects/token-6.x-1.19.tar.gz"
+      UBER_TB="http://ftp.drupal.org/files/projects/ubercart-6.x-2.13.tar.gz"
+    elif [$ version = 7.34 ]; then
+      UBER_TB="http://ftp.drupal.org/files/projects/ubercart-7.x-3.6.tar.gz"
+      TOKEN_TB="http://ftp.drupal.org/files/projects/token-7.x-1.5.tar.gz"
+    fi
+
+    curl -vv -L $TOKEN_TB > /tmp/token.tar.gz
+    curl -vv -L $UBER_TB > /tmp/uber.tar.gz
+
+    tar -C $install_path/modules -zxf /tmp/token.tar.gz
+    tar -C $install_path/modules -zxf /tmp/uber.tar.gz
+
+    echo $uber > .uber
+}
 
 if [ -f .version ]; then
    if [ "x$(cat .version)" = "x$version" ]; then 
@@ -41,7 +62,18 @@ else
 install_drupal
 fi
 
+if [ $uber = "yes"]; then
+  if [ -f .uber ]; then
+     if [ "x$(cat .uber)" = "x$uber" ]; then
+       juju-log "UberCart modules allready installed"
+     else
+       install_uber
+  else
+    install_uber
+  fi
+fi
 
+set_permissions
 
 if [ "x$engine" = "xapache" -o "x${engine}" = "xapache2" ]; then
 	if [ -f .web-engine ]; then
