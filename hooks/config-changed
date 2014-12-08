@@ -38,7 +38,7 @@ install_uber(){
     if [ $version = 6.34 ]; then
       TOKEN_TB="http://ftp.drupal.org/files/projects/token-6.x-1.19.tar.gz"
       UBER_TB="http://ftp.drupal.org/files/projects/ubercart-6.x-2.13.tar.gz"
-    elif [$ version = 7.34 ]; then
+    elif [ $version = 7.34 ]; then
       UBER_TB="http://ftp.drupal.org/files/projects/ubercart-7.x-3.6.tar.gz"
       TOKEN_TB="http://ftp.drupal.org/files/projects/token-7.x-1.5.tar.gz"
     fi
@@ -59,7 +59,7 @@ if [ -f .version ]; then
       install_drupal
    fi
 else
-install_drupal
+   install_drupal
 fi
 
 if [ $uber = "yes"]; then
@@ -68,6 +68,7 @@ if [ $uber = "yes"]; then
        juju-log "UberCart modules allready installed"
      else
        install_uber
+     fi
   else
     install_uber
   fi
