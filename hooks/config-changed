@@ -62,7 +62,7 @@ else
    install_drupal
 fi
 
-if [ $uber = "yes"]; then
+if [ "$uber" = "yes" ]; then
   if [ -f .uber ]; then
      if [ "x$(cat .uber)" = "x$uber" ]; then
        juju-log "UberCart modules allready installed"
