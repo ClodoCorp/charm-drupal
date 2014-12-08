@@ -8,6 +8,7 @@ database=`relation-get database`
 user=`relation-get user`
 password=`relation-get password`
 host=`relation-get private-address`
+version=`config-get version`
 
 if [ -z "$database" ] ; then
 	exit 0
@@ -19,6 +20,7 @@ if [ -e $install_path/sites/default/settings.php ];then
 else
     config_file="$install_path/sites/default/default.settings.php"
 fi
+
 cat <<EOF >> $config_file
 \$databases['default']['default'] = array(
   'driver' => 'mysql',
@@ -30,6 +32,8 @@ cat <<EOF >> $config_file
   'collation' => 'utf8_general_ci',
 );
 EOF
+
+
 
 juju-log "Resetting permissions"
 

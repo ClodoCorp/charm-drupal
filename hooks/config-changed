@@ -23,7 +23,9 @@ install_drupal(){
       juju-log "Extract"
       tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
       rm -f /tmp/drupal.tar.gz
-
+      if [ $version = "6.34" ]
+         mv $install_path/sites/default/default.settings.php $install_path/sites/default/settings.php
+      fi
       set_permissions
       echo $version > .version
 }
