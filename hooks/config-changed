@@ -27,6 +27,13 @@ install_drupal(){
          mv $install_path/sites/default/default.settings.php $install_path/sites/default/settings.php
       fi
 
+      if [ $version = "7.34" ];then
+         (
+         patch -d $install_path -p1 < files/drupal/drupal.patch
+         )
+      fi
+
+
       echo $version > .version
 }
 

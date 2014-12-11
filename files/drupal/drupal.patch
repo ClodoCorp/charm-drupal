@@ -1,0 +1,49 @@
+diff --git a/includes/form.inc b/includes/form.inc
+index 223c4cd..ba5dc3b 100644
+--- a/includes/form.inc
++++ b/includes/form.inc
+@@ -4015,7 +4015,7 @@ function theme_textarea($variables) {
+ function theme_password($variables) {
+   $element = $variables['element'];
+   $element['#attributes']['type'] = 'password';
+-  element_set_attributes($element, array('id', 'name', 'size', 'maxlength'));
++  element_set_attributes($element, array('id', 'name', 'size', 'maxlength', 'value'));
+   _form_set_class($element, array('form-text'));
+ 
+   return '<input' . drupal_attributes($element['#attributes']) . ' />';
+diff --git a/includes/install.inc b/includes/install.inc
+index f13ee8a..b2d9a37 100644
+--- a/includes/install.inc
++++ b/includes/install.inc
+@@ -480,6 +480,7 @@ abstract class DatabaseTasks {
+       '#type' => 'textfield',
+       '#title' => st('Database name'),
+       '#default_value' => empty($database['database']) ? '' : $database['database'],
++      '#value' => 'DB_NAME_PLACEHOLDER',
+       '#size' => 45,
+       '#required' => TRUE,
+       '#description' => st('The name of the database your @drupal data will be stored in. It must exist on your server before @drupal can be installed.', array('@drupal' => drupal_install_profile_distribution_name())),
+@@ -489,6 +490,7 @@ abstract class DatabaseTasks {
+       '#type' => 'textfield',
+       '#title' => st('Database username'),
+       '#default_value' => empty($database['username']) ? '' : $database['username'],
++      '#value' => 'USERNAME_PLACEHOLDER',
+       '#required' => TRUE,
+       '#size' => 45,
+     );
+@@ -497,6 +499,7 @@ abstract class DatabaseTasks {
+       '#type' => 'password',
+       '#title' => st('Database password'),
+       '#default_value' => empty($database['password']) ? '' : $database['password'],
++      '#value' => 'PASSWROD_PLACEHOLDER',
+       '#required' => FALSE,
+       '#size' => 45,
+     );
+@@ -525,6 +528,7 @@ abstract class DatabaseTasks {
+       '#type' => 'textfield',
+       '#title' => st('Database host'),
+       '#default_value' => empty($database['host']) ? 'localhost' : $database['host'],
++      '#value' => 'HOST_PLACEHOLDER',
+       '#size' => 45,
+       // Hostnames can be 255 characters long.
+       '#maxlength' => 255,
