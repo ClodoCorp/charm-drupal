@@ -26,6 +26,18 @@ if [ $version = "6.34" ];then
  sed -i "s|\$db_url = 'mysql://username:password@localhost/databasename';|\$db_url = 'mysql://$user:$password@$host/$database';|g" $config_file
 
 else
+cat <<EOF >> $config_file
+    \$databases['default']['default'] = array(
+    'driver' => 'mysql',
+    'database' => '$database',
+    'username' => '$user',
+    'password' => '$password',
+    'host' => '$host',
+    'prefix' => '',
+    'collation' => 'utf8_general_ci',
+    );
+EOF
+
   sed -i "s|HOST_PLACEHOLDER|$host|g" $install_path/includes/install.inc
   sed -i "s|USERNAME_PLACEHOLDER|$user|g" $install_path/includes/install.inc
   sed -i "s|PASSWROD_PLACEHOLDER|$password|g" $install_path/includes/install.inc
