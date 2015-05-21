@@ -15,7 +15,7 @@ options:
     description: "Currently two web server engines are supported: nginx and apache."
   version:
     type: string
-    default: "7.34"
+    default: "7.37"
     description: "Version of Drupal"
   uber:
     type: string
