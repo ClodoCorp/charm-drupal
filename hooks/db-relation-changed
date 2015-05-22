@@ -37,7 +37,7 @@ cat <<EOF >> $config_file
     'collation' => 'utf8_general_ci',
     );
 
-$cookie_domain = $_SERVER['HTTP_HOST'];
+\$cookie_domain = $_SERVER['HTTP_HOST'];
 EOF
 
   sed -i "s|HOST_PLACEHOLDER|localhost|g" $install_path/includes/install.inc
