@@ -110,6 +110,7 @@ if [ "x$engine" = "xapache" -o "x${engine}" = "xapache2" ]; then
 	echo "apache2" > .web-engine
 fi
 
+sed -i "s|max_execution_time = 30|max_execution_time = 180|g" /etc/php5/apache2/php.ini
 
 hooks/loadbalancer-rebuild
 
