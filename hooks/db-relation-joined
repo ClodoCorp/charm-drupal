@@ -4,6 +4,8 @@ juju-log "We've got a db"
 
 . inc/common
 
+sleep 120s
+
 database=`relation-get database`
 user=`relation-get user`
 password=`relation-get password`
@@ -42,11 +44,8 @@ EOF
   sed -i "s|USERNAME_PLACEHOLDER|$user|g" $install_path/includes/install.inc
   sed -i "s|PASSWROD_PLACEHOLDER|$password|g" $install_path/includes/install.inc
   sed -i "s|DB_NAME_PLACEHOLDER|$database|g" $install_path/includes/install.inc
+
 fi
-
-
-
-
 
 juju-log "Resetting permissions"
 
