@@ -4,8 +4,6 @@ juju-log "Add relations"
 
 . inc/common
 
-sleep 120s
-
 database=`relation-get database`
 user=`relation-get user`
 password=`relation-get password`
