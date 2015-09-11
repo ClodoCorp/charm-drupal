@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 . inc/common
 
@@ -23,11 +23,11 @@ install_drupal(){
       juju-log "Extract"
       tar -C $install_path --strip-components=1 -zxf /tmp/drupal.tar.gz
       rm -f /tmp/drupal.tar.gz
-      if [ $version = "6.34" ];then
+      if [[ $version == 6.* ]]; then
          mv $install_path/sites/default/default.settings.php $install_path/sites/default/settings.php
       fi
 
-      if [ $version = "7.34" ];then
+      if [[ $version == 7.* ]]; then
          (
          patch -d $install_path -p1 < files/drupal/drupal.patch
          )
@@ -60,7 +60,7 @@ install_uber(){
 }
 
 if [ -f .version ]; then
-   if [ "x$(cat .version)" = "x$version" ]; then 
+   if [ "x$(cat .version)" = "x$version" ]; then
       juju-log "Drupal version $version already installed"
    else
       install_drupal
